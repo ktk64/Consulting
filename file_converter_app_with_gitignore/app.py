@@ -1,4 +1,13 @@
-+import pandas as pd
+(cd "$(git rev-parse --show-toplevel)" && git apply --3way <<'EOF' 
+diff --git a/file_converter_app_with_gitignore/app.py b/file_converter_app_with_gitignore/app.py
+index 862c51244dde370c137198cc0fd97b239b447cb9..e7882e0585b686ba4088db6c73ab0fb58edb69ea 100644
+--- a/file_converter_app_with_gitignore/app.py
++++ b/file_converter_app_with_gitignore/app.py
+@@ -1,27 +1,260 @@
+-import streamlit as st
++import io
++
+ import pandas as pd
 +import streamlit as st
 +
 +st.set_page_config(page_title="Reconciliation Form", layout="wide")
@@ -276,4 +285,7 @@
 +        st.error(f"Unable to process one or both files: {exc}")
 +else:
 +    st.info("Upload both files to configure mapping and generate the reconciliation form.")
+ 
+EOF
+)
 
