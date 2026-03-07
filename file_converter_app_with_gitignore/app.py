@@ -31,8 +31,8 @@ DEFAULT_FTW_MAPPING = {
     "Contributions": "Contribution",
     "Takeover Contribution": "Contributions",
     "Loan Repayments": "Loan Repayments",
-    "Loan Repay Principal": "Loan Repay Principal",
-    "Loan Repay Interest": "Loan Repay Interest",
+    "Loan Repay Principal": "Loan Reap Principal",
+    "Loan Repay Interest": "Loan Reap Interest",
     "Loan Issue": "Loan Issue",
     "Withdrawals": "Distributions",
     "Fund Transfers": "Transfers",
@@ -118,20 +118,19 @@ def load_uploaded_file(uploaded_file: Any) -> pd.DataFrame:
             st.write(f"Error reading Excel: {e}")
             raise
 
-def sum_column(df: pd.DataFrame, column_name: str) -> float:
-    """Safely sum a numeric column and return float, with debugging."""
-    if column_name == NOT_MAPPED:
-        return 0.0
-    if column_name not in df.columns:
-        st.write(f"Warning: Column '{column_name}' not found in DataFrame columns: {list(df.columns)}")
-        return 0.0
-    try:
-        total = float(pd.to_numeric(df[column_name], errors='coerce').fillna(0).sum())
-        st.write(f"Sum for column '{column_name}': {total}")
-        return total
-    except Exception as e:
-        st.write(f"Error summing column '{column_name}': {e}")
-        return 0.0
+def sum_all_numeric(df: pd.DataFrame) -> float:
+    """Sum all numeric values in the DataFrame."""
+    total = float(pd.to_numeric(df.select_dtypes(include='number').sum().sum(), errors='coerce'))
+    return total
+
+def add_total_row(df: pd.DataFrame, label: str) -> pd.DataFrame:
+    """Add a total row for the DataFrame with the sum of all numeric values."""
+    total_value = sum_all_numeric(df)
+    total_row = {col: "" for col in df.columns}
+    total_row[list(df.columns)[0]] = label
+    total_row["Total"] = total_value  # add a 'Total' column if exists, or you can customize
+    # Append the total row
+    return pd.concat([df, pd.DataFrame([total_row])], ignore_index=True)
 
 def create_mapping_table(df_ftwilliam: pd.DataFrame, df_recordkeeper: pd.DataFrame) -> pd.DataFrame:
     """Build default mapping table for line items."""
@@ -158,53 +157,95 @@ def build_reconciliation(
     df_recordkeeper: pd.DataFrame,
     mapping_df: pd.DataFrame,
 ) -> pd.DataFrame:
-    """Construct reconciliation output from mapping table and two input DataFrames."""
+    """Build total lines for each file and compare for reconciliation."""
+    # Sum all numeric in FTWilliam
+    total_ftw_value = sum_all_numeric(df_ftwilliam)
+    # Sum all numeric in Recordkeeper
+    total_rk_value = sum_all_numeric(df_recordkeeper)
+
+    # Create total lines
+    total_ftw_line = {
+        "Line Item": "TOTAL FTWilliam",
+        "FTWilliam": total_ftw_value,
+        "Recordkeeper": "",
+        "Difference (FTW - RK)": ""
+    }
+
+    total_rk_line = {
+        "Line Item": "TOTAL Recordkeeper",
+        "FTWilliam": "",
+        "Recordkeeper": total_rk_value,
+        "Difference (FTW - RK)": ""
+    }
+
+    # Now compare totals
+    diff = total_ftw_value - total_rk_value
+
+    # Prepare the reconciliation DataFrame
     rows = []
+
+    # For each mapping, sum specific columns
     for _, mapping in mapping_df.iterrows():
         field = mapping["Line Item"]
-        ftw_column = mapping["FTWilliam Header"]
-        rk_column = mapping["Recordkeeper Header"]
+        ftw_col = mapping["FTWilliam Header"]
+        rk_col = mapping["Recordkeeper Header"]
 
         # Debug info
         st.write(f"Processing line item: {field}")
-        st.write(f"FTWilliam column: {ftw_column}")
-        st.write(f"Recordkeeper column: {rk_column}")
+        st.write(f"FTWilliam column: {ftw_col}")
+        st.write(f"Recordkeeper column: {rk_col}")
 
-        # Sum values
-        ftw_value = sum_column(df_ftwilliam, ftw_column)
-        rk_value = sum_column(df_recordkeeper, rk_column)
+        ftw_sum = sum_column(df_ftwilliam, ftw_col)
+        rk_sum = sum_column(df_recordkeeper, rk_col)
 
         # Debug sums
-        st.write(f"Sum FTWilliam for '{ftw_column}': {ftw_value}")
-        st.write(f"Sum Recordkeeper for '{rk_column}': {rk_value}")
+        st.write(f"Sum FTWilliam for {ftw_col}: {ftw_sum}")
+        st.write(f"Sum Recordkeeper for {rk_col}: {rk_sum}")
 
         rows.append(
             {
                 "Line Item": field,
-                "FTWilliam Header": ftw_column,
-                "Recordkeeper Header": rk_column,
-                "FTWilliam": ftw_value,
-                "Recordkeeper": rk_value,
-                "Difference (FTW - RK)": ftw_value - rk_value,
+                "FTWilliam Header": ftw_col,
+                "Recordkeeper Header": rk_col,
+                "FTWilliam": ftw_sum,
+                "Recordkeeper": rk_sum,
+                "Difference (FTW - RK)": ftw_sum - rk_sum,
             }
         )
 
     reconciliation = pd.DataFrame(rows)
+
+    # Add total lines
     totals = {
         "Line Item": "TOTAL",
         "FTWilliam Header": "",
         "Recordkeeper Header": "",
-        "FTWilliam": reconciliation["FTWilliam"].sum(),
-        "Recordkeeper": reconciliation["Recordkeeper"].sum(),
-        "Difference (FTW - RK)": reconciliation["Difference (FTW - RK)"].sum(),
+        "FTWilliam": total_ftw_value,
+        "Recordkeeper": total_rk_value,
+        "Difference (FTW - RK)": diff,
     }
+
     return pd.concat([reconciliation, pd.DataFrame([totals])], ignore_index=True)
+
+def sum_column(df: pd.DataFrame, column_name: str) -> float:
+    """Sum a specific column in a DataFrame with debug info."""
+    if column_name == NOT_MAPPED:
+        return 0.0
+    if column_name not in df.columns:
+        st.write(f"Warning: Column '{column_name}' not found in DataFrame columns: {list(df.columns)}")
+        return 0.0
+    try:
+        total = float(pd.to_numeric(df[column_name], errors='coerce').fillna(0).sum())
+        return total
+    except Exception as e:
+        st.write(f"Error summing column '{column_name}': {e}")
+        return 0.0
 
 def main() -> None:
     st.title("FTWilliam vs Recordkeeper Reconciliation")
     st.write(
         "Upload one FTWilliam file and one Recordkeeper file (.csv or .xlsx). "
-        "Review or adjust header mappings, then generate the reconciliation form."
+        "Review or adjust header mappings, then generate the reconciliation."
     )
 
     col1, col2 = st.columns(2)
@@ -224,41 +265,18 @@ def main() -> None:
             df_ftwilliam = load_uploaded_file(ftwilliam_file)
             df_recordkeeper = load_uploaded_file(recordkeeper_file)
 
-            # Debugging: Show loaded columns
-            st.write("FTWilliam DataFrame columns:", df_ftwilliam.columns.tolist())
-            st.write("Recordkeeper DataFrame columns:", df_recordkeeper.columns.tolist())
+            # Debug: show loaded data columns
+            st.write("FTWilliam columns:", list(df_ftwilliam.columns))
+            st.write("Recordkeeper columns:", list(df_recordkeeper.columns))
 
-            # Create default mappings
+            # Create mapping table (not used directly here but for reference)
             mapping_df = create_mapping_table(df_ftwilliam, df_recordkeeper)
 
-            st.subheader("Header Mapping")
-            st.caption(
-                "Verify which FTWilliam and Recordkeeper headers map to each reconciliation line item."
-            )
+            # Build reconciliation with total lines
+            reconciliation_df = build_reconciliation(df_ftwilliam, df_recordkeeper, mapping_df)
 
-            ftw_options = [NOT_MAPPED] + list(df_ftwilliam.columns)
-            rk_options = [NOT_MAPPED] + list(df_recordkeeper.columns)
-
-            edited_mapping = st.data_editor(
-                mapping_df,
-                use_container_width=True,
-                hide_index=True,
-                disabled=["Line Item"],
-                column_config={
-                    "FTWilliam Header": st.column_config.SelectboxColumn(
-                        "FTWilliam Header", options=ftw_options, required=True
-                    ),
-                    "Recordkeeper Header": st.column_config.SelectboxColumn(
-                        "Recordkeeper Header", options=rk_options, required=True
-                    ),
-                },
-                key="mapping_editor",
-            )
-
-            # Build the reconciliation DataFrame with debug info
-            reconciliation_df = build_reconciliation(df_ftwilliam, df_recordkeeper, edited_mapping)
-
-            st.subheader("Reconciliation Form")
+            # Show results
+            st.subheader("Reconciliation Results")
             st.dataframe(
                 reconciliation_df.style.format(
                     {
@@ -270,23 +288,21 @@ def main() -> None:
                 use_container_width=True,
             )
 
+            # Download button
             st.download_button(
                 "Download Reconciliation CSV",
                 reconciliation_df.to_csv(index=False),
-                "reconciliation_form.csv",
-                "text/csv",
+                "reconciliation.csv",
+                "text/csv"
             )
 
-            with st.expander("Preview uploaded data"):
-                st.markdown("**FTWilliam file preview**")
-                st.dataframe(df_ftwilliam.head(25), use_container_width=True)
-                st.markdown("**Recordkeeper file preview**")
-                st.dataframe(df_recordkeeper.head(25), use_container_width=True)
-
-        except Exception as exc:
-            st.error(f"Unable to process one or both files: {exc}")
-    else:
-        st.info("Upload both files to configure mapping and generate the reconciliation form.")
+            # Show some preview of uploaded data
+            with st.expander("Preview FTWilliam data"):
+                st.dataframe(df_ftwilliam.head(25))
+            with st.expander("Preview Recordkeeper data"):
+                st.dataframe(df_recordkeeper.head(25))
+        except Exception as e:
+            st.error(f"Error during processing: {e}")
 
 if __name__ == "__main__":
     main()
