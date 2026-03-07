@@ -129,49 +129,17 @@ def sum_numeric_excluding_total(df: pd.DataFrame) -> float:
     total = pd.to_numeric(df_filtered.select_dtypes(include='number').sum().sum(), errors='coerce')
     return float(total)
 
-def create_total_line(df: pd.DataFrame, label: str) -> pd.DataFrame:
-    """Create a total line with sum of all numeric data."""
-    total_value = sum_numeric_excluding_total(df)
-    total_row = {col: "" for col in df.columns}
-    first_col = df.columns[0]
-    total_row[first_col] = label
-    # Optional: add total in a 'Total' column if exists
-    if "Total" in df.columns:
-        total_row["Total"] = total_value
-    else:
-        total_row["Total"] = total_value
-    return pd.concat([df, pd.DataFrame([total_row])], ignore_index=True)
-
-def create_mapping_table(df_ftwilliam: pd.DataFrame, df_recordkeeper: pd.DataFrame) -> pd.DataFrame:
-    """Build default mapping table for line items."""
-    ftw_columns = set(df_ftwilliam.columns)
-    rk_columns = set(df_recordkeeper.columns)
-
-    rows = []
-    for field in TARGET_FIELDS:
-        ftw_default = DEFAULT_FTW_MAPPING.get(field, NOT_MAPPED)
-        rk_default = DEFAULT_RK_MAPPING.get(field, NOT_MAPPED)
-
-        rows.append(
-            {
-                "Line Item": field,
-                "FTWilliam Header": ftw_default if ftw_default in ftw_columns else NOT_MAPPED,
-                "Recordkeeper Header": rk_default if rk_default in rk_columns else NOT_MAPPED,
-            }
-        )
-
-    return pd.DataFrame(rows)
-
 def build_reconciliation(
     df_ftwilliam: pd.DataFrame,
     df_recordkeeper: pd.DataFrame,
     mapping_df: pd.DataFrame,
 ) -> pd.DataFrame:
     """Create total lines for each file, then compare."""
-    total_ftw = sum_numeric_excluding_total(df_ftwilliam)
-    total_rk = sum_numeric_excluding_total(df_recordkeeper)
-    diff = total_ftw - total_rk
+    total_ftw = float(sum_numeric_excluding_total(df_ftwilliam))
+    total_rk = float(sum_numeric_excluding_total(df_recordkeeper))
+    diff = float(total_ftw - total_rk)
 
+    # Build detailed comparison
     rows = []
 
     for _, mapping in mapping_df.iterrows():
@@ -204,28 +172,34 @@ def build_reconciliation(
 
     detailed_df = pd.DataFrame(rows)
 
-    # Create total lines with float values
+    # Create total lines with explicit float types
     total_lines = pd.DataFrame([
         {
             "Line Item": "TOTAL FTWilliam",
             "FTWilliam": float(total_ftw),
-            "Recordkeeper": "",
-            "Difference (FTW - RK)": ""
+            "Recordkeeper": None,
+            "Difference (FTW - RK)": None
         },
         {
             "Line Item": "TOTAL Recordkeeper",
-            "FTWilliam": "",
+            "FTWilliam": None,
             "Recordkeeper": float(total_rk),
-            "Difference (FTW - RK)": ""
+            "Difference (FTW - RK)": None
         },
         {
             "Line Item": "TOTAL (Difference)",
-            "FTWilliam": "",
-            "Recordkeeper": "",
+            "FTWilliam": None,
+            "Recordkeeper": None,
             "Difference (FTW - RK)": float(diff)
         }
     ])
 
+    # Ensure numeric columns are float
+    total_lines["FTWilliam"] = total_lines["FTWilliam"].astype(float)
+    total_lines["Recordkeeper"] = total_lines["Recordkeeper"].astype(float)
+    total_lines["Difference (FTW - RK)"] = total_lines["Difference (FTW - RK)"].astype(float)
+
+    # Concatenate detailed rows and totals
     return pd.concat([detailed_df, total_lines], ignore_index=True)
 
 def sum_column(df: pd.DataFrame, column_name: str) -> float:
