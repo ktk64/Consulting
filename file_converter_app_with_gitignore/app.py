@@ -49,9 +49,9 @@ DEFAULT_RK_MAPPING = {
     "Beginning Total": "Beginning Balance",
     "Contributions": "Contributions",
     "Takeover Contribution": "Takeover Contribution",
-    "Loan Repayments": "Loan Repayments",
-    "Loan Repay Principal": "Loan Reap Principal",
-    "Loan Repay Interest": "Loan Reap Interest",
+    "Loan Repayments": "Loan Reap Principal",
+    "Loan Reap Principal": "Loan Reap Principal",
+    "Loan Reap Interest": "Loan Reap Interest",
     "Loan Issue": "Loan Issue",
     "Withdrawals": "Withdrawals",
     "Fund Transfers": "Fund Transfers",
@@ -119,34 +119,27 @@ def load_uploaded_file(uploaded_file: Any) -> pd.DataFrame:
             raise
 
 def sum_numeric_excluding_total(df: pd.DataFrame) -> float:
-    """Sum all numeric columns in the dataframe, excluding any 'Total' rows."""
-    # Exclude rows where 'Line Item' or first column says TOTAL
+    """Sum all numeric data excluding any row labeled as 'TOTAL'."""
     if 'Line Item' in df.columns:
         df_filtered = df[~df['Line Item'].astype(str).str.upper().str.contains("TOTAL")]
-    elif len(df.columns) > 0:
-        # fallback: exclude rows where first column is 'TOTAL'
+    else:
+        # fallback: exclude rows where first column contains "TOTAL"
         first_col = df.columns[0]
         df_filtered = df[~df[first_col].astype(str).str.upper().str.contains("TOTAL")]
-    else:
-        df_filtered = df
-
-    # Sum all numeric columns
-    total = float(pd.to_numeric(df_filtered.select_dtypes(include='number').sum().sum(), errors='coerce'))
-    return total
+    total = pd.to_numeric(df_filtered.select_dtypes(include='number').sum().sum(), errors='coerce')
+    return float(total)
 
 def create_total_line(df: pd.DataFrame, label: str) -> pd.DataFrame:
     """Create a total line with sum of all numeric data."""
     total_value = sum_numeric_excluding_total(df)
     total_row = {col: "" for col in df.columns}
-    # Set the label in the first column
     first_col = df.columns[0]
     total_row[first_col] = label
-    # Optionally, add the total value in a 'Total' column if exists
+    # Optional: add total in a 'Total' column if exists
     if "Total" in df.columns:
         total_row["Total"] = total_value
     else:
         total_row["Total"] = total_value
-
     return pd.concat([df, pd.DataFrame([total_row])], ignore_index=True)
 
 def create_mapping_table(df_ftwilliam: pd.DataFrame, df_recordkeeper: pd.DataFrame) -> pd.DataFrame:
@@ -175,14 +168,10 @@ def build_reconciliation(
     mapping_df: pd.DataFrame,
 ) -> pd.DataFrame:
     """Create total lines for each file, then compare."""
-    # Calculate total sum for FTWilliam
     total_ftw = sum_numeric_excluding_total(df_ftwilliam)
-    # Calculate total sum for Recordkeeper
     total_rk = sum_numeric_excluding_total(df_recordkeeper)
-    # Difference
     diff = total_ftw - total_rk
 
-    # Build the main detailed comparison
     rows = []
 
     for _, mapping in mapping_df.iterrows():
@@ -213,32 +202,30 @@ def build_reconciliation(
             }
         )
 
-    # Create DataFrame for detailed comparison
     detailed_df = pd.DataFrame(rows)
 
-    # Create total lines
+    # Create total lines with float values
     total_lines = pd.DataFrame([
         {
             "Line Item": "TOTAL FTWilliam",
-            "FTWilliam": total_ftw,
+            "FTWilliam": float(total_ftw),
             "Recordkeeper": "",
             "Difference (FTW - RK)": ""
         },
         {
             "Line Item": "TOTAL Recordkeeper",
             "FTWilliam": "",
-            "Recordkeeper": total_rk,
+            "Recordkeeper": float(total_rk),
             "Difference (FTW - RK)": ""
         },
         {
             "Line Item": "TOTAL (Difference)",
             "FTWilliam": "",
             "Recordkeeper": "",
-            "Difference (FTW - RK)": diff
+            "Difference (FTW - RK)": float(diff)
         }
     ])
 
-    # Concatenate detailed and total
     return pd.concat([detailed_df, total_lines], ignore_index=True)
 
 def sum_column(df: pd.DataFrame, column_name: str) -> float:
@@ -249,8 +236,8 @@ def sum_column(df: pd.DataFrame, column_name: str) -> float:
         st.write(f"Warning: Column '{column_name}' not found in DataFrame columns: {list(df.columns)}")
         return 0.0
     try:
-        total = float(pd.to_numeric(df[column_name], errors='coerce').fillna(0).sum())
-        return total
+        total = pd.to_numeric(df[column_name], errors='coerce').fillna(0).sum()
+        return float(total)
     except Exception as e:
         st.write(f"Error summing column '{column_name}': {e}")
         return 0.0
