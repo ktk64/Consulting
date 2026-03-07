@@ -1,4 +1,4 @@
- (cd "$(git rev-parse --show-toplevel)" && git apply --3way <<'EOF' 
+(cd "$(git rev-parse --show-toplevel)" && git apply --3way <<'EOF' 
 diff --git a/file_converter_app_with_gitignore/README.md b/file_converter_app_with_gitignore/README.md
 index 486e1b5af1f865c0bc31630c273c7241275e0b5e..7d787344c3a2d7cb8f0baa18f883b7dffb8b8bf5 100644
 --- a/file_converter_app_with_gitignore/README.md
