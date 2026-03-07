@@ -30,9 +30,9 @@ DEFAULT_FTW_MAPPING = {
     "Beginning Total": "Beginning Balance",
     "Contributions": "Contribution",
     "Takeover Contribution": "Contributions",
-    "Loan Repayments": "Loan Repayments",
-    "Loan Repay Principal": "Loan Reap Principal",
-    "Loan Repay Interest": "Loan Reap Interest",
+    "Loan Repayments": "Loan Reap Principal",
+    "Loan Reap Principal": "Loan Reap Principal",
+    "Loan Reap Interest": "Loan Reap Interest",
     "Loan Issue": "Loan Issue",
     "Withdrawals": "Distributions",
     "Fund Transfers": "Transfers",
@@ -49,7 +49,6 @@ DEFAULT_RK_MAPPING = {
     "Beginning Total": "Beginning Balance",
     "Contributions": "Contributions",
     "Takeover Contribution": "Takeover Contribution",
-    "Loan Repayments": "Loan Reap Principal",
     "Loan Reap Principal": "Loan Reap Principal",
     "Loan Reap Interest": "Loan Reap Interest",
     "Loan Issue": "Loan Issue",
@@ -128,6 +127,26 @@ def sum_numeric_excluding_total(df: pd.DataFrame) -> float:
         df_filtered = df[~df[first_col].astype(str).str.upper().str.contains("TOTAL")]
     total = pd.to_numeric(df_filtered.select_dtypes(include='number').sum().sum(), errors='coerce')
     return float(total)
+
+def create_mapping_table(df_ftwilliam: pd.DataFrame, df_recordkeeper: pd.DataFrame) -> pd.DataFrame:
+    """Build default mapping table for line items."""
+    ftw_columns = set(df_ftwilliam.columns)
+    rk_columns = set(df_recordkeeper.columns)
+
+    rows = []
+    for field in TARGET_FIELDS:
+        ftw_default = DEFAULT_FTW_MAPPING.get(field, NOT_MAPPED)
+        rk_default = DEFAULT_RK_MAPPING.get(field, NOT_MAPPED)
+
+        rows.append(
+            {
+                "Line Item": field,
+                "FTWilliam Header": ftw_default if ftw_default in ftw_columns else NOT_MAPPED,
+                "Recordkeeper Header": rk_default if rk_default in rk_columns else NOT_MAPPED,
+            }
+        )
+
+    return pd.DataFrame(rows)
 
 def build_reconciliation(
     df_ftwilliam: pd.DataFrame,
@@ -278,6 +297,27 @@ def main() -> None:
                 st.dataframe(df_recordkeeper.head(25))
         except Exception as e:
             st.error(f"Error during processing: {e}")
+
+# Function needed: create_mapping_table
+def create_mapping_table(df_ftwilliam: pd.DataFrame, df_recordkeeper: pd.DataFrame) -> pd.DataFrame:
+    """Build default mapping table for line items."""
+    ftw_columns = set(df_ftwilliam.columns)
+    rk_columns = set(df_recordkeeper.columns)
+
+    rows = []
+    for field in TARGET_FIELDS:
+        ftw_default = DEFAULT_FTW_MAPPING.get(field, NOT_MAPPED)
+        rk_default = DEFAULT_RK_MAPPING.get(field, NOT_MAPPED)
+
+        rows.append(
+            {
+                "Line Item": field,
+                "FTWilliam Header": ftw_default if ftw_default in ftw_columns else NOT_MAPPED,
+                "Recordkeeper Header": rk_default if rk_default in rk_columns else NOT_MAPPED,
+            }
+        )
+
+    return pd.DataFrame(rows)
 
 if __name__ == "__main__":
     main()
