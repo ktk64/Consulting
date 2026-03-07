@@ -50,8 +50,8 @@ DEFAULT_RK_MAPPING = {
     "Contributions": "Contributions",
     "Takeover Contribution": "Takeover Contribution",
     "Loan Repayments": "Loan Repayments",
-    "Loan Repay Principal": "Loan Repay Principal",
-    "Loan Repay Interest": "Loan Repay Interest",
+    "Loan Repay Principal": "Loan Reap Principal",
+    "Loan Repay Interest": "Loan Reap Interest",
     "Loan Issue": "Loan Issue",
     "Withdrawals": "Withdrawals",
     "Fund Transfers": "Fund Transfers",
@@ -64,13 +64,11 @@ DEFAULT_RK_MAPPING = {
     "Gain/Loss": "Gain/Loss",
 }
 
-
 def _clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     """Remove empty helper columns and normalize header spacing."""
     cleaned = df.dropna(axis=1, how="all").copy()
     cleaned.columns = [str(col).strip() for col in cleaned.columns]
     return cleaned
-
 
 def _read_csv_with_fallbacks(file_bytes: bytes) -> pd.DataFrame:
     """Read CSV content using delimiter fallbacks for vendor exports."""
@@ -102,7 +100,6 @@ def _read_csv_with_fallbacks(file_bytes: bytes) -> pd.DataFrame:
 
     return _clean_dataframe(best_df)
 
-
 def load_uploaded_file(uploaded_file: Any) -> pd.DataFrame:
     """Load CSV or XLSX file into a DataFrame."""
     file_bytes = uploaded_file.getvalue()
@@ -113,13 +110,20 @@ def load_uploaded_file(uploaded_file: Any) -> pd.DataFrame:
     df = pd.read_excel(io.BytesIO(file_bytes))
     return _clean_dataframe(df)
 
-
 def sum_column(df: pd.DataFrame, column_name: str) -> float:
-    """Safely sum a numeric column and return float."""
-    if column_name == NOT_MAPPED or column_name not in df.columns:
+    """Safely sum a numeric column and return float, with debugging."""
+    if column_name == NOT_MAPPED:
         return 0.0
-    return float(pd.to_numeric(df[column_name], errors="coerce").fillna(0).sum())
-
+    if column_name not in df.columns:
+        st.write(f"Warning: Column '{column_name}' not found in DataFrame columns: {list(df.columns)}")
+        return 0.0
+    try:
+        total = float(pd.to_numeric(df[column_name], errors='coerce').fillna(0).sum())
+        st.write(f"Sum for column '{column_name}': {total}")
+        return total
+    except Exception as e:
+        st.write(f"Error summing column '{column_name}': {e}")
+        return 0.0
 
 def create_mapping_table(df_ftwilliam: pd.DataFrame, df_recordkeeper: pd.DataFrame) -> pd.DataFrame:
     """Build default mapping table for line items."""
@@ -140,7 +144,6 @@ def create_mapping_table(df_ftwilliam: pd.DataFrame, df_recordkeeper: pd.DataFra
         )
 
     return pd.DataFrame(rows)
-
 
 def build_reconciliation(
     df_ftwilliam: pd.DataFrame,
@@ -178,7 +181,6 @@ def build_reconciliation(
     }
     return pd.concat([reconciliation, pd.DataFrame([totals])], ignore_index=True)
 
-
 def main() -> None:
     st.title("FTWilliam vs Recordkeeper Reconciliation")
     st.write(
@@ -202,6 +204,10 @@ def main() -> None:
         try:
             df_ftwilliam = load_uploaded_file(ftwilliam_file)
             df_recordkeeper = load_uploaded_file(recordkeeper_file)
+
+            # Debugging: Show columns loaded
+            st.write("FTWilliam DataFrame columns:", df_ftwilliam.columns.tolist())
+            st.write("Recordkeeper DataFrame columns:", df_recordkeeper.columns.tolist())
 
             mapping_df = create_mapping_table(df_ftwilliam, df_recordkeeper)
 
@@ -261,7 +267,5 @@ def main() -> None:
     else:
         st.info("Upload both files to configure mapping and generate the reconciliation form.")
 
-
 if __name__ == "__main__":
     main()
-
