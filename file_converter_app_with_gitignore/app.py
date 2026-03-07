@@ -73,7 +73,6 @@ def _clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 def _read_csv_with_fallbacks(file_bytes: bytes) -> pd.DataFrame:
     """Read CSV content using delimiter fallbacks for vendor exports."""
     csv_text = file_bytes.decode("utf-8-sig", errors="replace")
-
     parse_attempts = [
         {"sep": None, "engine": "python"},
         {"sep": "\t", "engine": "python"},
@@ -101,14 +100,23 @@ def _read_csv_with_fallbacks(file_bytes: bytes) -> pd.DataFrame:
     return _clean_dataframe(best_df)
 
 def load_uploaded_file(uploaded_file: Any) -> pd.DataFrame:
-    """Load CSV or XLSX file into a DataFrame."""
+    """Load CSV or XLSX file into a DataFrame with debug info."""
     file_bytes = uploaded_file.getvalue()
 
-    if uploaded_file.name.lower().endswith(".csv"):
-        return _read_csv_with_fallbacks(file_bytes)
+    st.write(f"Uploading file: {uploaded_file.name}")
+    st.write("First 500 bytes of file:", file_bytes[:500])
 
-    df = pd.read_excel(io.BytesIO(file_bytes))
-    return _clean_dataframe(df)
+    if uploaded_file.name.lower().endswith(".csv"):
+        st.write("Attempting to parse as CSV.")
+        return _read_csv_with_fallbacks(file_bytes)
+    else:
+        st.write("Attempting to parse as Excel.")
+        try:
+            df = pd.read_excel(io.BytesIO(file_bytes))
+            return _clean_dataframe(df)
+        except Exception as e:
+            st.write(f"Error reading Excel: {e}")
+            raise
 
 def sum_column(df: pd.DataFrame, column_name: str) -> float:
     """Safely sum a numeric column and return float, with debugging."""
@@ -209,6 +217,7 @@ def main() -> None:
             st.write("FTWilliam DataFrame columns:", df_ftwilliam.columns.tolist())
             st.write("Recordkeeper DataFrame columns:", df_recordkeeper.columns.tolist())
 
+            # Proceed with creating mappings and reconciliation
             mapping_df = create_mapping_table(df_ftwilliam, df_recordkeeper)
 
             st.subheader("Header Mapping")
@@ -235,6 +244,7 @@ def main() -> None:
                 key="mapping_editor",
             )
 
+            # Build the reconciliation DataFrame
             reconciliation_df = build_reconciliation(df_ftwilliam, df_recordkeeper, edited_mapping)
 
             st.subheader("Reconciliation Form")
