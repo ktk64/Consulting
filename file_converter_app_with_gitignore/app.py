@@ -41,7 +41,7 @@ DEFAULT_FTW_MAPPING = {
     "Fees": "Fees",
     "TPA Fees": "TPA Fees",
     "Misc": "Other",
-    "Dividends Earnings": "Earnings",
+    "Dividends Earnings": "Dividends Earnings",  # updated here
     "Gain/Loss": "Earnings",
 }
 
@@ -139,7 +139,7 @@ def build_reconciliation(
     df_recordkeeper: pd.DataFrame,
     mapping_df: pd.DataFrame,
 ) -> pd.DataFrame:
-    """Create comparison DataFrame with detailed line items."""
+    """Create comparison DataFrame for line items."""
     rows = []
 
     for _, mapping in mapping_df.iterrows():
@@ -193,17 +193,19 @@ def main() -> None:
             df_ftwilliam = load_uploaded_file(ftwilliam_file)
             df_recordkeeper = load_uploaded_file(recordkeeper_file)
 
-            # Show loaded columns
-            st.write("FTWilliam columns:", list(df_ftwilliam.columns))
-            st.write("Recordkeeper columns:", list(df_recordkeeper.columns))
+            # Show loaded data for user review
+            st.subheader("Data from FTWilliam")
+            st.dataframe(df_ftwilliam.head(10))
+            st.subheader("Data from Recordkeeper")
+            st.dataframe(df_recordkeeper.head(10))
 
             # Create mapping table
             mapping_df = create_mapping_table(df_ftwilliam, df_recordkeeper)
 
-            # Build the comparison DataFrame
+            # Build comparison DataFrame
             comparison_df = build_reconciliation(df_ftwilliam, df_recordkeeper, mapping_df)
 
-            # Display the comparison
+            # Show comparison
             st.subheader("Comparison Results")
             st.dataframe(
                 comparison_df.style.format(
@@ -216,7 +218,7 @@ def main() -> None:
                 use_container_width=True
             )
 
-            # Download button
+            # Download option
             st.download_button(
                 "Download CSV",
                 comparison_df.to_csv(index=False),
