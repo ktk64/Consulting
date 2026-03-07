@@ -1,12 +1,12 @@
 (cd "$(git rev-parse --show-toplevel)" && git apply --3way <<'EOF' 
 diff --git a/file_converter_app_with_gitignore/app.py b/file_converter_app_with_gitignore/app.py
-index d728062c8a2b2e18bc76d1e180b8b22b27480dad..ab5a38d31e210e5d6c667296eabdb011302bc87b 100644
+index d728062c8a2b2e18bc76d1e180b8b22b27480dad.ab5a38d31e210e5d6c667296eabdb011302bc87b 100644
 --- a/file_converter_app_with_gitignore/app.py
 +++ b/file_converter_app_with_gitignore/app.py
 @@ -1,209 +1,137 @@
 -(cd "$(git rev-parse --show-toplevel)" && git apply --3way <<'EOF' 
 -diff --git a/file_converter_app_with_gitignore/README.md b/file_converter_app_with_gitignore/README.md
--index 486e1b5af1f865c0bc31630c273c7241275e0b5e..7d787344c3a2d7cb8f0baa18f883b7dffb8b8bf5 100644
+-index 486e1b5af1f865c0bc31630c273c7241275e0b5e.7d787344c3a2d7cb8f0baa18f883b7dffb8b8bf5 100644
 ---- a/file_converter_app_with_gitignore/README.md
 -+++ b/file_converter_app_with_gitignore/README.md
 -@@ -1,8 +1,33 @@
@@ -48,7 +48,7 @@ index d728062c8a2b2e18bc76d1e180b8b22b27480dad..ab5a38d31e210e5d6c667296eabdb011
 -+streamlit run app.py
 -+```
 -diff --git a/file_converter_app_with_gitignore/app.py b/file_converter_app_with_gitignore/app.py
--index 862c51244dde370c137198cc0fd97b239b447cb9..6a26cb8520208582e1bc4d2a3fab757bee3350f6 100644
+-index 862c51244dde370c137198cc0fd97b239b447cb9.6a26cb8520208582e1bc4d2a3fab757bee3350f6 100644
 ---- a/file_converter_app_with_gitignore/app.py
 -+++ b/file_converter_app_with_gitignore/app.py
 -@@ -1,27 +1,137 @@
