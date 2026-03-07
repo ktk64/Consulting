@@ -118,18 +118,35 @@ def load_uploaded_file(uploaded_file: Any) -> pd.DataFrame:
             st.write(f"Error reading Excel: {e}")
             raise
 
-def sum_all_numeric(df: pd.DataFrame) -> float:
-    """Sum all numeric values in the DataFrame."""
-    total = float(pd.to_numeric(df.select_dtypes(include='number').sum().sum(), errors='coerce'))
+def sum_numeric_excluding_total(df: pd.DataFrame) -> float:
+    """Sum all numeric columns in the dataframe, excluding any 'Total' rows."""
+    # Exclude rows where 'Line Item' or first column says TOTAL
+    if 'Line Item' in df.columns:
+        df_filtered = df[~df['Line Item'].astype(str).str.upper().str.contains("TOTAL")]
+    elif len(df.columns) > 0:
+        # fallback: exclude rows where first column is 'TOTAL'
+        first_col = df.columns[0]
+        df_filtered = df[~df[first_col].astype(str).str.upper().str.contains("TOTAL")]
+    else:
+        df_filtered = df
+
+    # Sum all numeric columns
+    total = float(pd.to_numeric(df_filtered.select_dtypes(include='number').sum().sum(), errors='coerce'))
     return total
 
-def add_total_row(df: pd.DataFrame, label: str) -> pd.DataFrame:
-    """Add a total row for the DataFrame with the sum of all numeric values."""
-    total_value = sum_all_numeric(df)
+def create_total_line(df: pd.DataFrame, label: str) -> pd.DataFrame:
+    """Create a total line with sum of all numeric data."""
+    total_value = sum_numeric_excluding_total(df)
     total_row = {col: "" for col in df.columns}
-    total_row[list(df.columns)[0]] = label
-    total_row["Total"] = total_value  # add a 'Total' column if exists, or you can customize
-    # Append the total row
+    # Set the label in the first column
+    first_col = df.columns[0]
+    total_row[first_col] = label
+    # Optionally, add the total value in a 'Total' column if exists
+    if "Total" in df.columns:
+        total_row["Total"] = total_value
+    else:
+        total_row["Total"] = total_value
+
     return pd.concat([df, pd.DataFrame([total_row])], ignore_index=True)
 
 def create_mapping_table(df_ftwilliam: pd.DataFrame, df_recordkeeper: pd.DataFrame) -> pd.DataFrame:
@@ -157,34 +174,17 @@ def build_reconciliation(
     df_recordkeeper: pd.DataFrame,
     mapping_df: pd.DataFrame,
 ) -> pd.DataFrame:
-    """Build total lines for each file and compare for reconciliation."""
-    # Sum all numeric in FTWilliam
-    total_ftw_value = sum_all_numeric(df_ftwilliam)
-    # Sum all numeric in Recordkeeper
-    total_rk_value = sum_all_numeric(df_recordkeeper)
+    """Create total lines for each file, then compare."""
+    # Calculate total sum for FTWilliam
+    total_ftw = sum_numeric_excluding_total(df_ftwilliam)
+    # Calculate total sum for Recordkeeper
+    total_rk = sum_numeric_excluding_total(df_recordkeeper)
+    # Difference
+    diff = total_ftw - total_rk
 
-    # Create total lines
-    total_ftw_line = {
-        "Line Item": "TOTAL FTWilliam",
-        "FTWilliam": total_ftw_value,
-        "Recordkeeper": "",
-        "Difference (FTW - RK)": ""
-    }
-
-    total_rk_line = {
-        "Line Item": "TOTAL Recordkeeper",
-        "FTWilliam": "",
-        "Recordkeeper": total_rk_value,
-        "Difference (FTW - RK)": ""
-    }
-
-    # Now compare totals
-    diff = total_ftw_value - total_rk_value
-
-    # Prepare the reconciliation DataFrame
+    # Build the main detailed comparison
     rows = []
 
-    # For each mapping, sum specific columns
     for _, mapping in mapping_df.iterrows():
         field = mapping["Line Item"]
         ftw_col = mapping["FTWilliam Header"]
@@ -213,22 +213,36 @@ def build_reconciliation(
             }
         )
 
-    reconciliation = pd.DataFrame(rows)
+    # Create DataFrame for detailed comparison
+    detailed_df = pd.DataFrame(rows)
 
-    # Add total lines
-    totals = {
-        "Line Item": "TOTAL",
-        "FTWilliam Header": "",
-        "Recordkeeper Header": "",
-        "FTWilliam": total_ftw_value,
-        "Recordkeeper": total_rk_value,
-        "Difference (FTW - RK)": diff,
-    }
+    # Create total lines
+    total_lines = pd.DataFrame([
+        {
+            "Line Item": "TOTAL FTWilliam",
+            "FTWilliam": total_ftw,
+            "Recordkeeper": "",
+            "Difference (FTW - RK)": ""
+        },
+        {
+            "Line Item": "TOTAL Recordkeeper",
+            "FTWilliam": "",
+            "Recordkeeper": total_rk,
+            "Difference (FTW - RK)": ""
+        },
+        {
+            "Line Item": "TOTAL (Difference)",
+            "FTWilliam": "",
+            "Recordkeeper": "",
+            "Difference (FTW - RK)": diff
+        }
+    ])
 
-    return pd.concat([reconciliation, pd.DataFrame([totals])], ignore_index=True)
+    # Concatenate detailed and total
+    return pd.concat([detailed_df, total_lines], ignore_index=True)
 
 def sum_column(df: pd.DataFrame, column_name: str) -> float:
-    """Sum a specific column in a DataFrame with debug info."""
+    """Sum a specific column with debug info."""
     if column_name == NOT_MAPPED:
         return 0.0
     if column_name not in df.columns:
@@ -265,11 +279,11 @@ def main() -> None:
             df_ftwilliam = load_uploaded_file(ftwilliam_file)
             df_recordkeeper = load_uploaded_file(recordkeeper_file)
 
-            # Debug: show loaded data columns
+            # Show loaded columns for debugging
             st.write("FTWilliam columns:", list(df_ftwilliam.columns))
             st.write("Recordkeeper columns:", list(df_recordkeeper.columns))
 
-            # Create mapping table (not used directly here but for reference)
+            # Create mapping table for reference
             mapping_df = create_mapping_table(df_ftwilliam, df_recordkeeper)
 
             # Build reconciliation with total lines
@@ -288,7 +302,7 @@ def main() -> None:
                 use_container_width=True,
             )
 
-            # Download button
+            # Download
             st.download_button(
                 "Download Reconciliation CSV",
                 reconciliation_df.to_csv(index=False),
@@ -296,7 +310,7 @@ def main() -> None:
                 "text/csv"
             )
 
-            # Show some preview of uploaded data
+            # Previews
             with st.expander("Preview FTWilliam data"):
                 st.dataframe(df_ftwilliam.head(25))
             with st.expander("Preview Recordkeeper data"):
