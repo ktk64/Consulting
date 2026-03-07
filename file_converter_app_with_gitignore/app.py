@@ -165,8 +165,19 @@ def build_reconciliation(
         ftw_column = mapping["FTWilliam Header"]
         rk_column = mapping["Recordkeeper Header"]
 
+        # Debug info
+        st.write(f"Processing line item: {field}")
+        st.write(f"FTWilliam column: {ftw_column}")
+        st.write(f"Recordkeeper column: {rk_column}")
+
+        # Sum values
         ftw_value = sum_column(df_ftwilliam, ftw_column)
         rk_value = sum_column(df_recordkeeper, rk_column)
+
+        # Debug sums
+        st.write(f"Sum FTWilliam for '{ftw_column}': {ftw_value}")
+        st.write(f"Sum Recordkeeper for '{rk_column}': {rk_value}")
+
         rows.append(
             {
                 "Line Item": field,
@@ -213,11 +224,11 @@ def main() -> None:
             df_ftwilliam = load_uploaded_file(ftwilliam_file)
             df_recordkeeper = load_uploaded_file(recordkeeper_file)
 
-            # Debugging: Show columns loaded
+            # Debugging: Show loaded columns
             st.write("FTWilliam DataFrame columns:", df_ftwilliam.columns.tolist())
             st.write("Recordkeeper DataFrame columns:", df_recordkeeper.columns.tolist())
 
-            # Proceed with creating mappings and reconciliation
+            # Create default mappings
             mapping_df = create_mapping_table(df_ftwilliam, df_recordkeeper)
 
             st.subheader("Header Mapping")
@@ -244,7 +255,7 @@ def main() -> None:
                 key="mapping_editor",
             )
 
-            # Build the reconciliation DataFrame
+            # Build the reconciliation DataFrame with debug info
             reconciliation_df = build_reconciliation(df_ftwilliam, df_recordkeeper, edited_mapping)
 
             st.subheader("Reconciliation Form")
