@@ -24,7 +24,6 @@ TARGET_FIELDS = [
 ]
 
 NOT_MAPPED = "(Not mapped)"
-SKIP_MAPPING_OPTION = "(Not mapped)"
 
 DEFAULT_FTW_MAPPING = {
     "Beginning Balance": "Beginning Balance",
@@ -158,11 +157,12 @@ def build_reconciliation(df_ftwilliam, df_recordkeeper, mapping):
     df = pd.DataFrame(rows)
     return df
 
+# Main app
 def main():
     st.title("FTWilliam vs Recordkeeper Reconciliation")
     st.write(
         "Upload your FTWilliam and Recordkeeper files (.csv or .xlsx). "
-        "Then, set the header mappings, choosing multiple columns if needed."
+        "Set the header mappings. Then click 'Run Comparison' to generate results."
     )
 
     col1, col2 = st.columns(2)
@@ -177,24 +177,24 @@ def main():
             "Upload Recordkeeper file (.csv or .xlsx)", type=["csv", "xlsx"], key="rk"
         )
 
-    if ftwilliam_file and recordkeeper_file:
+    if st.button("Run Comparison") and ftwilliam_file and recordkeeper_file:
         try:
             df_ftwilliam = load_uploaded_file(ftwilliam_file)
             df_recordkeeper = load_uploaded_file(recordkeeper_file)
 
-            # Show the first few rows for user to verify
+            # Show the first few rows for user verification
             st.subheader("Data from FTWilliam")
             st.dataframe(df_ftwilliam.head(10))
             st.subheader("Data from Recordkeeper")
             st.dataframe(df_recordkeeper.head(10))
 
-            # User mapping
+            # Header mapping
             mapping = user_header_mapping(df_ftwilliam, df_recordkeeper)
 
             # Build comparison
             comparison_df = build_reconciliation(df_ftwilliam, df_recordkeeper, mapping)
 
-            # Show results
+            # Show comparison
             st.subheader("Comparison Results")
             st.dataframe(
                 comparison_df.style.format(
@@ -207,7 +207,7 @@ def main():
                 use_container_width=True
             )
 
-            # Download option
+            # Download button
             st.download_button(
                 "Download CSV",
                 comparison_df.to_csv(index=False),
