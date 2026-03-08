@@ -162,7 +162,7 @@ def main():
     st.title("FTWilliam vs Recordkeeper Reconciliation")
     st.write(
         "Upload your FTWilliam and Recordkeeper files (.csv or .xlsx). "
-        "Set the header mappings. Then click 'Run Comparison' to generate results."
+        "Set the header mappings. Then press the button below to run the comparison."
     )
 
     col1, col2 = st.columns(2)
@@ -177,12 +177,12 @@ def main():
             "Upload Recordkeeper file (.csv or .xlsx)", type=["csv", "xlsx"], key="rk"
         )
 
-    if st.button("Run Comparison") and ftwilliam_file and recordkeeper_file:
+    if ftwilliam_file and recordkeeper_file:
         try:
             df_ftwilliam = load_uploaded_file(ftwilliam_file)
             df_recordkeeper = load_uploaded_file(recordkeeper_file)
 
-            # Show the first few rows for user verification
+            # Show the first few rows
             st.subheader("Data from FTWilliam")
             st.dataframe(df_ftwilliam.head(10))
             st.subheader("Data from Recordkeeper")
@@ -191,29 +191,30 @@ def main():
             # Header mapping
             mapping = user_header_mapping(df_ftwilliam, df_recordkeeper)
 
-            # Build comparison
-            comparison_df = build_reconciliation(df_ftwilliam, df_recordkeeper, mapping)
+            # Only run comparison after button press
+            if st.button("Run Comparison"):
+                comparison_df = build_reconciliation(df_ftwilliam, df_recordkeeper, mapping)
 
-            # Show comparison
-            st.subheader("Comparison Results")
-            st.dataframe(
-                comparison_df.style.format(
-                    {
-                        "FTWilliam": "{:,.2f}",
-                        "Recordkeeper": "{:,.2f}",
-                        "Difference (FTW - RK)": "{:,.2f}"
-                    }
-                ),
-                use_container_width=True
-            )
+                # Show comparison
+                st.subheader("Comparison Results")
+                st.dataframe(
+                    comparison_df.style.format(
+                        {
+                            "FTWilliam": "{:,.2f}",
+                            "Recordkeeper": "{:,.2f}",
+                            "Difference (FTW - RK)": "{:,.2f}"
+                        }
+                    ),
+                    use_container_width=True
+                )
 
-            # Download button
-            st.download_button(
-                "Download CSV",
-                comparison_df.to_csv(index=False),
-                "comparison.csv",
-                "text/csv"
-            )
+                # Download button
+                st.download_button(
+                    "Download CSV",
+                    comparison_df.to_csv(index=False),
+                    "comparison.csv",
+                    "text/csv"
+                )
 
         except Exception as e:
             st.error(f"Error during processing: {e}")
