@@ -41,7 +41,7 @@ DEFAULT_FTW_MAPPING = {
     "Fees": "Fees",
     "TPA Fees": "TPA Fees",
     "Misc": "Other",
-    "Dividends Earnings": "Dividends Earnings",  # updated here
+    "Dividends Earnings": "Dividends Earnings",
     "Gain/Loss": "Earnings",
 }
 
@@ -72,22 +72,18 @@ def _clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 def _read_csv_with_fallbacks(file_bytes: bytes) -> pd.DataFrame:
     """Read CSV, handle comma as thousand separator optionally."""
     csv_text = file_bytes.decode("utf-8-sig", errors="replace")
-    # Try reading with comma as thousands separator
     try:
         df = pd.read_csv(io.StringIO(csv_text), thousands=",")
         return _clean_dataframe(df)
     except Exception:
-        # fallback without thousands separator
         df = pd.read_csv(io.StringIO(csv_text))
         return _clean_dataframe(df)
 
 def load_uploaded_file(uploaded_file: Any) -> pd.DataFrame:
     """Load CSV or XLSX file into a DataFrame."""
     file_bytes = uploaded_file.getvalue()
-
     st.write(f"Uploading file: {uploaded_file.name}")
     st.write("First 500 bytes of file:", file_bytes[:500])
-
     if uploaded_file.name.lower().endswith(".csv"):
         st.write("Attempting to parse as CSV.")
         return _read_csv_with_fallbacks(file_bytes)
@@ -100,52 +96,32 @@ def load_uploaded_file(uploaded_file: Any) -> pd.DataFrame:
             st.write(f"Error reading Excel: {e}")
             raise
 
-def sum_column(df: pd.DataFrame, column_name: str) -> float:
-    """Sum a specific column."""
-    if column_name == NOT_MAPPED:
-        return 0.0
-    if column_name not in df.columns:
-        st.write(f"Warning: Column '{column_name}' not found.")
-        return 0.0
-    try:
-        total = pd.to_numeric(df[column_name], errors='coerce').fillna(0).sum()
-        return float(total)
-    except Exception as e:
-        st.write(f"Error summing column '{column_name}': {e}")
-        return 0.0
+def user_header_mapping(df_ftwilliam, df_recordkeeper):
+    """Create a form for user to map headers manually."""
+    st.subheader("Header Mapping")
+    st.write("Select matching headers for each line item from your uploaded files.")
 
-def create_mapping_table(df_ftwilliam: pd.DataFrame, df_recordkeeper: pd.DataFrame) -> pd.DataFrame:
-    """Build default mapping table for line items."""
-    ftw_columns = set(df_ftwilliam.columns)
-    rk_columns = set(df_recordkeeper.columns)
-
-    rows = []
+    mapping = {}
     for field in TARGET_FIELDS:
-        ftw_default = DEFAULT_FTW_MAPPING.get(field, NOT_MAPPED)
-        rk_default = DEFAULT_RK_MAPPING.get(field, NOT_MAPPED)
-
-        rows.append(
-            {
-                "Line Item": field,
-                "FTWilliam Header": ftw_default if ftw_default in ftw_columns else NOT_MAPPED,
-                "Recordkeeper Header": rk_default if rk_default in rk_columns else NOT_MAPPED,
-            }
-        )
-
-    return pd.DataFrame(rows)
+        col1_header = st.selectbox(f"{field} - FTWilliam header", options=list(df_ftwilliam.columns), key=f"ftw_{field}")
+        col2_header = st.selectbox(f"{field} - Recordkeeper header", options=list(df_recordkeeper.columns), key=f"rk_{field}")
+        mapping[field] = {
+            "FTWilliam Header": col1_header,
+            "Recordkeeper Header": col2_header
+        }
+    return mapping
 
 def build_reconciliation(
     df_ftwilliam: pd.DataFrame,
     df_recordkeeper: pd.DataFrame,
-    mapping_df: pd.DataFrame,
+    mapping: dict,
 ) -> pd.DataFrame:
-    """Create comparison DataFrame for line items."""
+    """Create comparison DataFrame based on user header mapping."""
     rows = []
 
-    for _, mapping in mapping_df.iterrows():
-        field = mapping["Line Item"]
-        ftw_col = mapping["FTWilliam Header"]
-        rk_col = mapping["Recordkeeper Header"]
+    for field in TARGET_FIELDS:
+        ftw_col = mapping[field]["FTWilliam Header"]
+        rk_col = mapping[field]["Recordkeeper Header"]
 
         ftw_sum = sum_column(df_ftwilliam, ftw_col)
         rk_sum = sum_column(df_recordkeeper, rk_col)
@@ -169,11 +145,25 @@ def build_reconciliation(
     df = pd.DataFrame(rows)
     return df
 
+def sum_column(df: pd.DataFrame, column_name: str) -> float:
+    """Sum a specific column."""
+    if column_name == NOT_MAPPED:
+        return 0.0
+    if column_name not in df.columns:
+        st.write(f"Warning: Column '{column_name}' not found.")
+        return 0.0
+    try:
+        total = pd.to_numeric(df[column_name], errors='coerce').fillna(0).sum()
+        return float(total)
+    except Exception as e:
+        st.write(f"Error summing column '{column_name}': {e}")
+        return 0.0
+
 def main() -> None:
     st.title("FTWilliam vs Recordkeeper Reconciliation")
     st.write(
-        "Upload one FTWilliam file and one Recordkeeper file (.csv or .xlsx). "
-        "Review or adjust header mappings, then generate the comparison."
+        "Upload your FTWilliam and Recordkeeper files (.csv or .xlsx). "
+        "Then, review or set the header mappings if headers differ."
     )
 
     col1, col2 = st.columns(2)
@@ -199,11 +189,11 @@ def main() -> None:
             st.subheader("Data from Recordkeeper")
             st.dataframe(df_recordkeeper.head(10))
 
-            # Create mapping table
-            mapping_df = create_mapping_table(df_ftwilliam, df_recordkeeper)
+            # Header mapping
+            header_mapping = user_header_mapping(df_ftwilliam, df_recordkeeper)
 
             # Build comparison DataFrame
-            comparison_df = build_reconciliation(df_ftwilliam, df_recordkeeper, mapping_df)
+            comparison_df = build_reconciliation(df_ftwilliam, df_recordkeeper, header_mapping)
 
             # Show comparison
             st.subheader("Comparison Results")
@@ -218,7 +208,7 @@ def main() -> None:
                 use_container_width=True
             )
 
-            # Download option
+            # Download button
             st.download_button(
                 "Download CSV",
                 comparison_df.to_csv(index=False),
