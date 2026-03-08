@@ -6,7 +6,6 @@ import streamlit as st
 
 st.set_page_config(page_title="Reconciliation Form", layout="wide")
 
-# Updated target fields list
 TARGET_FIELDS = [
     "Beginning Balance",
     "Contributions",
@@ -27,7 +26,6 @@ TARGET_FIELDS = [
 NOT_MAPPED = "(Not mapped)"
 SKIP_MAPPING_OPTION = "(Not mapped)"
 
-# Updated default mappings for FTWilliam
 DEFAULT_FTW_MAPPING = {
     "Beginning Balance": "Beginning Balance",
     "Contributions": "Contribution",
@@ -46,7 +44,6 @@ DEFAULT_FTW_MAPPING = {
     "Gain/Loss": "Earnings",
 }
 
-# Updated default mappings for Recordkeeper
 DEFAULT_RK_MAPPING = {
     "Beginning Balance": "Beginning Balance",
     "Contributions": "Contributions",
@@ -66,13 +63,11 @@ DEFAULT_RK_MAPPING = {
 }
 
 def _clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
-    """Remove empty helper columns and normalize header spacing."""
     cleaned = df.dropna(axis=1, how="all").copy()
     cleaned.columns = [str(col).strip() for col in cleaned.columns]
     return cleaned
 
 def _read_csv_with_fallbacks(file_bytes: bytes) -> pd.DataFrame:
-    """Read CSV, handle comma as thousand separator optionally."""
     csv_text = file_bytes.decode("utf-8-sig", errors="replace")
     try:
         df = pd.read_csv(io.StringIO(csv_text), thousands=",")
@@ -82,7 +77,6 @@ def _read_csv_with_fallbacks(file_bytes: bytes) -> pd.DataFrame:
         return _clean_dataframe(df)
 
 def load_uploaded_file(uploaded_file: Any) -> pd.DataFrame:
-    """Load CSV or XLSX file into a DataFrame."""
     file_bytes = uploaded_file.getvalue()
     st.write(f"Uploading file: {uploaded_file.name}")
     st.write("First 500 bytes of file:", file_bytes[:500])
@@ -99,52 +93,62 @@ def load_uploaded_file(uploaded_file: Any) -> pd.DataFrame:
             raise
 
 def user_header_mapping(df_ftwilliam, df_recordkeeper):
-    """Create a form for user to map headers manually, with skip option."""
+    """Create a form for user to map headers with multiselect for multiple columns."""
     st.subheader("Header Mapping")
-    st.write("Select matching headers or choose '(Not mapped)' to skip for each line item.")
+    st.write("Select multiple columns for each line item, or choose '(Not mapped)' to skip.")
 
     options_ftw = [NOT_MAPPED] + list(df_ftwilliam.columns)
     options_rk = [NOT_MAPPED] + list(df_recordkeeper.columns)
 
     mapping = {}
     for field in TARGET_FIELDS:
-        ftw_header = st.selectbox(f"{field} - FTWilliam header", options=options_ftw, key=f"ftw_{field}")
-        rk_header = st.selectbox(f"{field} - Recordkeeper header", options=options_rk, key=f"rk_{field}")
+        ftw_headers = st.multiselect(f"{field} - FTWilliam columns", options=options_ftw, key=f"ftw_{field}")
+        rk_headers = st.multiselect(f"{field} - Recordkeeper columns", options=options_rk, key=f"rk_{field}")
         mapping[field] = {
-            "FTWilliam Header": ftw_header,
-            "Recordkeeper Header": rk_header
+            "FTWilliam Headers": ftw_headers,
+            "Recordkeeper Headers": rk_headers
         }
     return mapping
 
-def build_reconciliation(
-    df_ftwilliam: pd.DataFrame,
-    df_recordkeeper: pd.DataFrame,
-    mapping: dict,
-) -> pd.DataFrame:
-    """Create comparison DataFrame based on user header mapping, with skip option."""
+def sum_columns(df: pd.DataFrame, columns: list) -> float:
+    """Sum multiple columns."""
+    total = 0.0
+    for col in columns:
+        if col != NOT_MAPPED and col in df.columns:
+            total += pd.to_numeric(df[col], errors='coerce').fillna(0).sum()
+    return float(total)
+
+def build_reconciliation(df_ftwilliam, df_recordkeeper, mapping):
     rows = []
 
     for field in TARGET_FIELDS:
-        ftw_col = mapping[field]["FTWilliam Header"]
-        rk_col = mapping[field]["Recordkeeper Header"]
-        # Skip if either is not mapped
-        if ftw_col == NOT_MAPPED or rk_col == NOT_MAPPED:
+        ftw_cols = mapping[field]["FTWilliam Headers"]
+        rk_cols = mapping[field]["Recordkeeper Headers"]
+        if not ftw_cols:
+            ftw_cols = [NOT_MAPPED]
+        if not rk_cols:
+            rk_cols = [NOT_MAPPED]
+
+        if NOT_MAPPED in ftw_cols:
             ftw_sum = None
+        else:
+            ftw_sum = sum_columns(df_ftwilliam, ftw_cols)
+
+        if NOT_MAPPED in rk_cols:
             rk_sum = None
         else:
-            ftw_sum = sum_column(df_ftwilliam, ftw_col)
-            rk_sum = sum_column(df_recordkeeper, rk_col)
+            rk_sum = sum_columns(df_recordkeeper, rk_cols)
 
         # Debug info
         st.write(f"Processing: {field}")
-        st.write(f"FTWilliam column: {ftw_col} sum: {ftw_sum}")
-        st.write(f"Recordkeeper column: {rk_col} sum: {rk_sum}")
+        st.write(f"FTWilliam columns: {ftw_cols} sum: {ftw_sum}")
+        st.write(f"Recordkeeper columns: {rk_cols} sum: {rk_sum}")
 
         rows.append(
             {
                 "Line Item": field,
-                "FTWilliam Header": ftw_col,
-                "Recordkeeper Header": rk_col,
+                "FTWilliam Header": ", ".join(ftw_cols) if ftw_cols != [NOT_MAPPED] else NOT_MAPPED,
+                "Recordkeeper Header": ", ".join(rk_cols) if rk_cols != [NOT_MAPPED] else NOT_MAPPED,
                 "FTWilliam": ftw_sum if ftw_sum is not None else "",
                 "Recordkeeper": rk_sum if rk_sum is not None else "",
                 "Difference (FTW - RK)": (ftw_sum if ftw_sum is not None else 0) - (rk_sum if rk_sum is not None else 0),
@@ -154,25 +158,11 @@ def build_reconciliation(
     df = pd.DataFrame(rows)
     return df
 
-def sum_column(df: pd.DataFrame, column_name: str) -> float:
-    """Sum a specific column."""
-    if column_name == NOT_MAPPED:
-        return 0.0
-    if column_name not in df.columns:
-        st.write(f"Warning: Column '{column_name}' not found.")
-        return 0.0
-    try:
-        total = pd.to_numeric(df[column_name], errors='coerce').fillna(0).sum()
-        return float(total)
-    except Exception as e:
-        st.write(f"Error summing column '{column_name}': {e}")
-        return 0.0
-
-def main() -> None:
+def main():
     st.title("FTWilliam vs Recordkeeper Reconciliation")
     st.write(
         "Upload your FTWilliam and Recordkeeper files (.csv or .xlsx). "
-        "Then, review or set the header mappings. You can skip mapping columns if needed."
+        "Then, set the header mappings, choosing multiple columns if needed."
     )
 
     col1, col2 = st.columns(2)
@@ -192,19 +182,19 @@ def main() -> None:
             df_ftwilliam = load_uploaded_file(ftwilliam_file)
             df_recordkeeper = load_uploaded_file(recordkeeper_file)
 
-            # Show loaded data
+            # Show the first few rows for user to verify
             st.subheader("Data from FTWilliam")
             st.dataframe(df_ftwilliam.head(10))
             st.subheader("Data from Recordkeeper")
             st.dataframe(df_recordkeeper.head(10))
 
-            # Header mapping with skip option
-            header_mapping = user_header_mapping(df_ftwilliam, df_recordkeeper)
+            # User mapping
+            mapping = user_header_mapping(df_ftwilliam, df_recordkeeper)
 
             # Build comparison
-            comparison_df = build_reconciliation(df_ftwilliam, df_recordkeeper, header_mapping)
+            comparison_df = build_reconciliation(df_ftwilliam, df_recordkeeper, mapping)
 
-            # Show comparison
+            # Show results
             st.subheader("Comparison Results")
             st.dataframe(
                 comparison_df.style.format(
