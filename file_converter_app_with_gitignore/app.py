@@ -6,10 +6,11 @@ import streamlit as st
 
 st.set_page_config(page_title="Reconciliation Form", layout="wide")
 
+# Updated target fields list
 TARGET_FIELDS = [
-    "Beginning Total",
+    "Beginning Balance",
     "Contributions",
-    "Loan Repay Principal",
+    "Loan Reap Principal",
     "Loan Reap Interest",
     "Loan Issue",
     "Withdrawals",
@@ -26,11 +27,11 @@ TARGET_FIELDS = [
 NOT_MAPPED = "(Not mapped)"
 SKIP_MAPPING_OPTION = "(Not mapped)"
 
+# Updated default mappings for FTWilliam
 DEFAULT_FTW_MAPPING = {
-    "Beginning Total": "Beginning Balance",
+    "Beginning Balance": "Beginning Balance",
     "Contributions": "Contribution",
     "Takeover Contribution": "Contributions",
-    "Loan Repay Principal": "Loan Reap Principal",
     "Loan Reap Principal": "Loan Reap Principal",
     "Loan Reap Interest": "Loan Reap Interest",
     "Loan Issue": "Loan Issue",
@@ -45,8 +46,9 @@ DEFAULT_FTW_MAPPING = {
     "Gain/Loss": "Earnings",
 }
 
+# Updated default mappings for Recordkeeper
 DEFAULT_RK_MAPPING = {
-    "Beginning Total": "Beginning Balance",
+    "Beginning Balance": "Beginning Balance",
     "Contributions": "Contributions",
     "Takeover Contribution": "Takeover Contribution",
     "Loan Reap Principal": "Loan Reap Principal",
@@ -64,11 +66,13 @@ DEFAULT_RK_MAPPING = {
 }
 
 def _clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    """Remove empty helper columns and normalize header spacing."""
     cleaned = df.dropna(axis=1, how="all").copy()
     cleaned.columns = [str(col).strip() for col in cleaned.columns]
     return cleaned
 
 def _read_csv_with_fallbacks(file_bytes: bytes) -> pd.DataFrame:
+    """Read CSV, handle comma as thousand separator optionally."""
     csv_text = file_bytes.decode("utf-8-sig", errors="replace")
     try:
         df = pd.read_csv(io.StringIO(csv_text), thousands=",")
@@ -78,6 +82,7 @@ def _read_csv_with_fallbacks(file_bytes: bytes) -> pd.DataFrame:
         return _clean_dataframe(df)
 
 def load_uploaded_file(uploaded_file: Any) -> pd.DataFrame:
+    """Load CSV or XLSX file into a DataFrame."""
     file_bytes = uploaded_file.getvalue()
     st.write(f"Uploading file: {uploaded_file.name}")
     st.write("First 500 bytes of file:", file_bytes[:500])
@@ -94,14 +99,14 @@ def load_uploaded_file(uploaded_file: Any) -> pd.DataFrame:
             raise
 
 def user_header_mapping(df_ftwilliam, df_recordkeeper):
-    """Create a form for user to map headers with skip option."""
+    """Create a form for user to map headers manually, with skip option."""
     st.subheader("Header Mapping")
-    st.write("Select matching headers or skip mapping for each line item.")
+    st.write("Select matching headers or choose '(Not mapped)' to skip for each line item.")
 
-    mapping = {}
     options_ftw = [NOT_MAPPED] + list(df_ftwilliam.columns)
     options_rk = [NOT_MAPPED] + list(df_recordkeeper.columns)
 
+    mapping = {}
     for field in TARGET_FIELDS:
         ftw_header = st.selectbox(f"{field} - FTWilliam header", options=options_ftw, key=f"ftw_{field}")
         rk_header = st.selectbox(f"{field} - Recordkeeper header", options=options_rk, key=f"rk_{field}")
@@ -116,13 +121,13 @@ def build_reconciliation(
     df_recordkeeper: pd.DataFrame,
     mapping: dict,
 ) -> pd.DataFrame:
+    """Create comparison DataFrame based on user header mapping, with skip option."""
     rows = []
 
     for field in TARGET_FIELDS:
         ftw_col = mapping[field]["FTWilliam Header"]
         rk_col = mapping[field]["Recordkeeper Header"]
-
-        # If either header is NOT_MAPPED, skip comparison
+        # Skip if either is not mapped
         if ftw_col == NOT_MAPPED or rk_col == NOT_MAPPED:
             ftw_sum = None
             rk_sum = None
@@ -150,6 +155,7 @@ def build_reconciliation(
     return df
 
 def sum_column(df: pd.DataFrame, column_name: str) -> float:
+    """Sum a specific column."""
     if column_name == NOT_MAPPED:
         return 0.0
     if column_name not in df.columns:
