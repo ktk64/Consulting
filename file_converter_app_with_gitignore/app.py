@@ -162,7 +162,7 @@ def main():
     st.title("FTWilliam vs Recordkeeper Reconciliation")
     st.write(
         "Upload your FTWilliam and Recordkeeper files (.csv or .xlsx). "
-        "Set the header mappings. Then press the button below to run the comparison."
+        "Set the header mappings. When ready, click 'Run Comparison' to see results."
     )
 
     col1, col2 = st.columns(2)
@@ -177,12 +177,13 @@ def main():
             "Upload Recordkeeper file (.csv or .xlsx)", type=["csv", "xlsx"], key="rk"
         )
 
+    # Only show the button after files are uploaded and headers are set
     if ftwilliam_file and recordkeeper_file:
         try:
             df_ftwilliam = load_uploaded_file(ftwilliam_file)
             df_recordkeeper = load_uploaded_file(recordkeeper_file)
 
-            # Show the first few rows
+            # Show initial data
             st.subheader("Data from FTWilliam")
             st.dataframe(df_ftwilliam.head(10))
             st.subheader("Data from Recordkeeper")
@@ -191,11 +192,16 @@ def main():
             # Header mapping
             mapping = user_header_mapping(df_ftwilliam, df_recordkeeper)
 
-            # Only run comparison after button press
+            # Only run if user clicks button
             if st.button("Run Comparison"):
                 comparison_df = build_reconciliation(df_ftwilliam, df_recordkeeper, mapping)
 
-                # Show comparison
+                # Cast numeric columns explicitly to float before formatting
+                comparison_df["FTWilliam"] = comparison_df["FTWilliam"].astype(float)
+                comparison_df["Recordkeeper"] = comparison_df["Recordkeeper"].astype(float)
+                comparison_df["Difference (FTW - RK)"] = comparison_df["Difference (FTW - RK)"].astype(float)
+
+                # Show results
                 st.subheader("Comparison Results")
                 st.dataframe(
                     comparison_df.style.format(
@@ -208,7 +214,7 @@ def main():
                     use_container_width=True
                 )
 
-                # Download button
+                # Download option
                 st.download_button(
                     "Download CSV",
                     comparison_df.to_csv(index=False),
