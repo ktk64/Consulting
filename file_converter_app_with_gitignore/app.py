@@ -177,13 +177,13 @@ def main():
             "Upload Recordkeeper file (.csv or .xlsx)", type=["csv", "xlsx"], key="rk"
         )
 
-    # Only show the button after files are uploaded and headers are set
+    # After files are uploaded, show header mapping
     if ftwilliam_file and recordkeeper_file:
         try:
             df_ftwilliam = load_uploaded_file(ftwilliam_file)
             df_recordkeeper = load_uploaded_file(recordkeeper_file)
 
-            # Show initial data
+            # Show first rows for verification
             st.subheader("Data from FTWilliam")
             st.dataframe(df_ftwilliam.head(10))
             st.subheader("Data from Recordkeeper")
@@ -192,16 +192,17 @@ def main():
             # Header mapping
             mapping = user_header_mapping(df_ftwilliam, df_recordkeeper)
 
-            # Only run if user clicks button
+            # Only run comparison if user clicks button
             if st.button("Run Comparison"):
+                # Generate comparison DataFrame
                 comparison_df = build_reconciliation(df_ftwilliam, df_recordkeeper, mapping)
 
-                # Cast numeric columns explicitly to float before formatting
-                comparison_df["FTWilliam"] = comparison_df["FTWilliam"].astype(float)
-                comparison_df["Recordkeeper"] = comparison_df["Recordkeeper"].astype(float)
-                comparison_df["Difference (FTW - RK)"] = comparison_df["Difference (FTW - RK)"].astype(float)
+                # Convert columns explicitly to numeric to avoid string formatting errors
+                comparison_df["FTWilliam"] = pd.to_numeric(comparison_df["FTWilliam"], errors='coerce').fillna(0.0)
+                comparison_df["Recordkeeper"] = pd.to_numeric(comparison_df["Recordkeeper"], errors='coerce').fillna(0.0)
+                comparison_df["Difference (FTW - RK)"] = pd.to_numeric(comparison_df["Difference (FTW - RK)"], errors='coerce').fillna(0.0)
 
-                # Show results
+                # Show the formatted table
                 st.subheader("Comparison Results")
                 st.dataframe(
                     comparison_df.style.format(
@@ -214,7 +215,7 @@ def main():
                     use_container_width=True
                 )
 
-                # Download option
+                # Download link
                 st.download_button(
                     "Download CSV",
                     comparison_df.to_csv(index=False),
