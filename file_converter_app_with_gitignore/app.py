@@ -9,8 +9,8 @@ st.set_page_config(page_title="Reconciliation Form", layout="wide")
 TARGET_FIELDS = [
     "Beginning Balance",
     "Contributions",
-    "Loan Reap Principal",
-    "Loan Reap Interest",
+    "Loan Principal",
+    "Loan Interest",
     "Loan Issue",
     "Withdrawals",
     "Fund Transfers",
@@ -28,9 +28,8 @@ NOT_MAPPED = "(Not mapped)"
 DEFAULT_FTW_MAPPING = {
     "Beginning Balance": "Beginning Balance",
     "Contributions": "Contribution",
-    "Takeover Contribution": "Contributions",
-    "Loan Reap Principal": "Loan Reap Principal",
-    "Loan Reap Interest": "Loan Reap Interest",
+    "Loan Principal": "Loan Principal",
+    "Loan Interest": "Loan Interest",
     "Loan Issue": "Loan Issue",
     "Withdrawals": "Distributions",
     "Fund Transfers": "Transfers",
@@ -46,9 +45,8 @@ DEFAULT_FTW_MAPPING = {
 DEFAULT_RK_MAPPING = {
     "Beginning Balance": "Beginning Balance",
     "Contributions": "Contributions",
-    "Takeover Contribution": "Takeover Contribution",
-    "Loan Reap Principal": "Loan Reap Principal",
-    "Loan Reap Interest": "Loan Reap Interest",
+    "Loan Principal": "Loan Principal",
+    "Loan Interest": "Loan Interest",
     "Loan Issue": "Loan Issue",
     "Withdrawals": "Withdrawals",
     "Fund Transfers": "Fund Transfers",
@@ -192,7 +190,7 @@ def main():
             # Header mapping
             mapping = user_header_mapping(df_ftwilliam, df_recordkeeper)
 
-            # Only run comparison if user clicks button
+            # Only run if user clicks button
             if st.button("Run Comparison"):
                 # Generate comparison DataFrame
                 comparison_df = build_reconciliation(df_ftwilliam, df_recordkeeper, mapping)
